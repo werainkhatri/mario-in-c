@@ -4,6 +4,21 @@
 #include <SDL2/SDL_timer.h>
 #include <SDL2/SDL_image.h>
 
+#define WINDOW_WIDTH (1280)
+#define WINDOW_HEIGHT (720)
+#define SPEED (5)
+#define MARIO_STANDINGR "res/mario-standing.png"
+#define MARIO_WALKING_1R "res/mario-walking-1.png"
+#define MARIO_WALKING_2R "res/mario-walking-2.png"
+#define MARIO_WALKING_3R "res/mario-walking-3.png"
+#define MARIO_JUMPINGR "res/mario-jumping.png"
+#define MARIO_STANDINGL "res/mario-standing-left.png"
+#define MARIO_WALKING_1L "res/mario-walking-1-left.png"
+#define MARIO_WALKING_2L "res/mario-walking-2-left.png"
+#define MARIO_WALKING_3L "res/mario-walking-3-left.png"
+#define MARIO_JUMPINGL "res/mario-jumping-left.png"
+#define GROUND "res/ground.png"
+
 typedef struct {
   int x;
   int y;
@@ -11,21 +26,16 @@ typedef struct {
 
 typedef struct {
     Position pos;
-    char* name;
-    SDL_Texture *tex;
+    SDL_Texture *right[5], *left[5];
+    int state; // possible values 0 1 2 3
 } Sprite;
 
 typedef struct {
   Sprite mario;
-  Position groundPos;
+  SDL_Texture *ground;
   int state;
   SDL_Renderer *rend;
 } GameState;
-
-#define WINDOW_WIDTH (1280)
-#define WINDOW_HEIGHT (720)
-#define SPEED (5)
-#define MARIO_IMAGE "res/mario-standing.png"
 
 void initSDL(SDL_Window **win, SDL_Renderer **rend) {
   SDL_Init(SDL_INIT_VIDEO);
@@ -49,12 +59,55 @@ void initSDL(SDL_Window **win, SDL_Renderer **rend) {
     exit(1);
   }
 }
-void destroySDL(SDL_Window **win, SDL_Renderer **rend) {
+void destroySDL(SDL_Window *win, SDL_Renderer *rend) {
   // close resources
-  SDL_DestroyWindow(*win);
-  SDL_DestroyRenderer(*rend);
+  SDL_DestroyWindow(win);
+  SDL_DestroyRenderer(rend);
   // quit
   SDL_Quit();
+}
+
+SDL_Texture *createTexture(const char* file, SDL_Renderer *rend) {
+  SDL_Texture *tex;
+  SDL_Surface *surf = IMG_Load(file);
+  if(surf==NULL) {
+    printf("Error: couldn't find image with name %s: %s\n", file, SDL_GetError());
+    return NULL;
+  }
+
+  tex = SDL_CreateTextureFromSurface(rend,surf);
+  SDL_FreeSurface(surf);
+  if(tex==NULL) {
+    printf("Error: couldn't create texture with file name %s: %s\n", file, SDL_GetError());
+    return NULL;
+  }
+  return tex;
+}
+
+int initGame(GameState *game) {
+  char* right[5] = {MARIO_STANDINGR, MARIO_WALKING_1R, MARIO_WALKING_2R, MARIO_WALKING_3R, MARIO_JUMPINGR};
+  char* left[5] = {MARIO_STANDINGL, MARIO_WALKING_1L, MARIO_WALKING_2L, MARIO_WALKING_3L, MARIO_JUMPINGL};
+  game->mario.pos.x=50;
+  game->mario.pos.y=WINDOW_HEIGHT-380;
+  game->mario.state=1;
+
+  for(int i=0; i<5; i++) {
+    game->mario.right[i] = createTexture(right[i], game->rend);
+    if(game->mario.right[i]==NULL) return 0;
+  }
+  for(int i=0; i<5; i++) {
+    game->mario.left[i] = createTexture(left[i], game->rend);
+    if(game->mario.left[i]==NULL) return 0;
+  }
+  game->ground = createTexture(GROUND, game->rend);
+  if(game->ground==NULL) return 0;
+
+  return 1;
+}
+void destroyGame(GameState* game) {
+  for(int i=0; i<5; i++) {
+    SDL_DestroyTexture(game->mario.right[i]);
+  }
 }
 
 void renderGame(GameState *game) {
@@ -64,32 +117,15 @@ void renderGame(GameState *game) {
   SDL_SetRenderDrawColor(game->rend,255,255,255,255);
 
   SDL_Rect marioRect = {game->mario.pos.x,game->mario.pos.y,100,200};
-  SDL_RenderCopy(game->rend,game->mario.tex, NULL, &marioRect);
+  int s=game->mario.state;
+  SDL_Rect groundRect = {0,0,1280,720};
+  SDL_RenderCopy(game->rend, game->ground, NULL, &groundRect);
+  if(s<0)
+    SDL_RenderCopy(game->rend, game->mario.left[(-s)/10], NULL, &marioRect);
+  else
+    SDL_RenderCopy(game->rend, game->mario.right[s/10], NULL, &marioRect);
 
   SDL_RenderPresent(game->rend);
-}
-
-int initGame(GameState *game) {
-  game->mario.pos.x=50;
-  game->mario.pos.y=420;
-
-  SDL_Surface *surf = IMG_Load(MARIO_IMAGE);
-  if(surf==NULL) {
-    printf("Error: couldn't find mario image: %s\n", SDL_GetError());
-    return 0;
-  }
-
-  game->mario.tex = SDL_CreateTextureFromSurface(game->rend,surf);
-  SDL_FreeSurface(surf);
-  if(game->mario.tex==NULL) {
-    printf("Error: couldn't create mario texture: %s\n", SDL_GetError());
-    return 0;
-  }
-
-  return 1;
-}
-void destroyGame(GameState* game) {
-  SDL_DestroyTexture(game->mario.tex);
 }
 
 void processEvent(SDL_Event *event, GameState *game) {
@@ -118,14 +154,17 @@ void processEvent(SDL_Event *event, GameState *game) {
   if(kstate[SDL_SCANCODE_LSHIFT]) {
     s*=2;
   }
-  if(kstate[SDL_SCANCODE_LEFT])
-    game->mario.pos.x-=s;
-  else if(kstate[SDL_SCANCODE_RIGHT])
+  int *state = &game->mario.state;
+  if(kstate[SDL_SCANCODE_RIGHT]) {
     game->mario.pos.x+=s;
-  if(kstate[SDL_SCANCODE_UP])
-    game->mario.pos.y-=s;
-  else if(kstate[SDL_SCANCODE_DOWN])
-    game->mario.pos.y+=s;
+    *state = (*state<2 || *state==39?10:game->mario.state+1);
+  } else if(kstate[SDL_SCANCODE_LEFT]) {
+    game->mario.pos.x-=s;
+    *state = ((*state>-2 || *state==-39)?-10:game->mario.state-1);
+  } else if(game->mario.state) {
+    if(*state>0) *state=1;
+    else *state=-1;
+  }
 }
 
 int main() {
@@ -144,12 +183,11 @@ int main() {
   while(game.state) {
     // catch any events, if occured
     processEvent(&event, &game);
-
     // render on the screen
     renderGame(&game);
   }
 
   destroyGame(&game);
-  destroySDL(&win,&rend);
+  destroySDL(win,rend);
   return 0;
 }
