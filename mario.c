@@ -148,6 +148,13 @@ void collision(GameState* game) {
   if(game->mario.y >= WINDOW_HEIGHT-GROUND_HEIGHT) {
     game->mario.y=WINDOW_HEIGHT-GROUND_HEIGHT;
     game->mario.onGround = 1;
+  } else if(game->mario.y <= 0) {
+    game->mario.y = 0;
+  }
+  if(game->mario.x + MARIO_WIDTH >= WINDOW_WIDTH) {
+    game->mario.x=WINDOW_WIDTH-MARIO_WIDTH;
+  } else if(game->mario.x <= 0) {
+    game->mario.x=0;
   }
 }
 
@@ -174,29 +181,26 @@ void processEvent(SDL_Event *event, GameState *game) {
   }
   const Uint8 *kstate = SDL_GetKeyboardState(NULL);
   int s=SPEED;
-  if(kstate[SDL_SCANCODE_LSHIFT]) {
-    s*=2;
-  }
-  int *state = &game->mario.texState;
+  if(kstate[SDL_SCANCODE_LSHIFT]) s*=2;
+  int *texState = &game->mario.texState;
   if(kstate[SDL_SCANCODE_UP]) {
     if(game->mario.onGround) {
       game->mario.dy=-JUMP_VELOCITY;
       game->mario.onGround=0;
     }
   }
-  if(kstate[SDL_SCANCODE_RIGHT]) {
+  if(kstate[SDL_SCANCODE_RIGHT] && kstate[SDL_SCANCODE_LEFT]) {
+    if(*texState>0) *texState=1;
+    else *texState=-1;
+  } else if(kstate[SDL_SCANCODE_RIGHT]) {
     game->mario.x+=s;
-    if(game->mario.x + MARIO_WIDTH >= WINDOW_WIDTH) game->mario.x=WINDOW_WIDTH-MARIO_WIDTH;
-    *state = (*state<2 || *state==39?10:game->mario.texState+1);
-  }
-  if(kstate[SDL_SCANCODE_LEFT]) {
+    *texState = (*texState<2 || *texState==39?10:game->mario.texState+1);
+  }else if(kstate[SDL_SCANCODE_LEFT]) {
     game->mario.x-=s;
-    if(game->mario.x <= 0) game->mario.x=0;
-    *state = ((*state>-2 || *state==-39)?-10:game->mario.texState-1);
-  }
-  if(!kstate[SDL_SCANCODE_RIGHT] && !kstate[SDL_SCANCODE_LEFT]) {
-    if(*state>0) *state=1;
-    else *state=-1;
+    *texState = ((*texState>-2 || *texState==-39)?-10:game->mario.texState-1);
+  } else {
+    if(*texState>0) *texState=1;
+    else *texState=-1;
   }
 }
 
