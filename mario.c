@@ -19,6 +19,7 @@ typedef struct {
   Sprite mario;
   Position groundPos;
   int state;
+  SDL_Renderer *rend;
 } GameState;
 
 #define WINDOW_WIDTH (1280)
@@ -26,52 +27,51 @@ typedef struct {
 #define SPEED (5)
 #define MARIO_IMAGE "res/mario-standing.png"
 
-int initSDL(SDL_Window *win, SDL_Renderer *rend) {
+void initSDL(SDL_Window **win, SDL_Renderer **rend) {
   SDL_Init(SDL_INIT_VIDEO);
 
-  win = SDL_CreateWindow("Viren Khatri",           // Window Title
+  *win = SDL_CreateWindow("Viren Khatri",           // Window Title
                         SDL_WINDOWPOS_UNDEFINED,   // Initial x position
                         SDL_WINDOWPOS_UNDEFINED,   // Initial y position
                         WINDOW_WIDTH, WINDOW_HEIGHT, 0); // Dimentions of the Window
-  if(win==NULL) {
+  if(*win==NULL) {
     printf("Error creating Window: %s\n", SDL_GetError());
     SDL_Quit();
-    return 0;
+    exit(1);
   }
 
   Uint32 render_flags = SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC;
-  rend = SDL_CreateRenderer(win,-1,render_flags);
-  if(rend==NULL) {
+  *rend = SDL_CreateRenderer(*win,-1,render_flags);
+  if(*rend==NULL) {
     printf("Error creating Renderer: %s\n", SDL_GetError());
-    SDL_DestroyWindow(win);
+    SDL_DestroyWindow(*win);
     SDL_Quit();
-    return 0;
+    exit(1);
   }
-  return 1;
 }
-void destroySDL(SDL_Window *win, SDL_Renderer *rend) {
+void destroySDL(SDL_Window **win, SDL_Renderer **rend) {
   // close resources
-  SDL_DestroyWindow(win);
-  SDL_DestroyRenderer(rend);
+  SDL_DestroyWindow(*win);
+  SDL_DestroyRenderer(*rend);
   // quit
   SDL_Quit();
 }
 
-void render(SDL_Renderer *rend, GameState *game) {
-  SDL_SetRenderDrawColor(rend,0,255,0,255); // set drawing color to green
-  SDL_RenderClear(rend); // get screen (background) to green
+void renderGame(GameState *game) {
+  SDL_SetRenderDrawColor(game->rend,0,255,0,255); // set drawing color to green
+  SDL_RenderClear(game->rend); // get screen (background) to green
 
-  SDL_SetRenderDrawColor(rend,255,255,255,255);
+  SDL_SetRenderDrawColor(game->rend,255,255,255,255);
 
   SDL_Rect marioRect = {game->mario.pos.x,game->mario.pos.y,100,200};
-  SDL_RenderCopy(rend,game->mario.tex, NULL, &marioRect);
+  SDL_RenderCopy(game->rend,game->mario.tex, NULL, &marioRect);
 
-  SDL_RenderPresent(rend);
+  SDL_RenderPresent(game->rend);
 }
 
-int initGame(SDL_Renderer *rend, GameState *state) {
-  state->mario.pos.x=50;
-  state->mario.pos.y=420;
+int initGame(GameState *game) {
+  game->mario.pos.x=50;
+  game->mario.pos.y=420;
 
   SDL_Surface *surf = IMG_Load(MARIO_IMAGE);
   if(surf==NULL) {
@@ -79,9 +79,9 @@ int initGame(SDL_Renderer *rend, GameState *state) {
     return 0;
   }
 
-  state->mario.tex = SDL_CreateTextureFromSurface(rend,surf);
+  game->mario.tex = SDL_CreateTextureFromSurface(game->rend,surf);
   SDL_FreeSurface(surf);
-  if(state->mario.tex==NULL) {
+  if(game->mario.tex==NULL) {
     printf("Error: couldn't create mario texture: %s\n", SDL_GetError());
     return 0;
   }
@@ -131,30 +131,10 @@ void processEvent(SDL_Event *event, GameState *game) {
 int main() {
   SDL_Window* win;
   SDL_Renderer* rend;
-  // if(!initSDL(win,rend)) return 1;
-  SDL_Init(SDL_INIT_VIDEO);
-
-  win = SDL_CreateWindow("Viren Khatri",           // Window Title
-                        SDL_WINDOWPOS_UNDEFINED,   // Initial x position
-                        SDL_WINDOWPOS_UNDEFINED,   // Initial y position
-                        WINDOW_WIDTH, WINDOW_HEIGHT, 0); // Dimentions of the Window
-  if(win==NULL) {
-    printf("Error creating Window: %s\n", SDL_GetError());
-    SDL_Quit();
-    return 0;
-  }
-
-  Uint32 render_flags = SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC;
-  rend = SDL_CreateRenderer(win,-1,render_flags);
-  if(rend==NULL) {
-    printf("Error creating Renderer: %s\n", SDL_GetError());
-    SDL_DestroyWindow(win);
-    SDL_Quit();
-    return 0;
-  }
-
+  initSDL(&win,&rend);
   GameState game;
-  if(initGame(rend,&game)==0) {
+  game.rend=rend;
+  if(!initGame(&game)) {
     destroySDL(win,rend);
     return 1;
   }
@@ -166,10 +146,10 @@ int main() {
     processEvent(&event, &game);
 
     // render on the screen
-    render(rend, &game);
+    renderGame(&game);
   }
 
   destroyGame(&game);
-  destroySDL(win,rend);
+  destroySDL(&win,&rend);
   return 0;
 }
