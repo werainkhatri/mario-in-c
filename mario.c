@@ -108,6 +108,9 @@ void destroyGame(GameState* game) {
   for(int i=0; i<5; i++) {
     SDL_DestroyTexture(game->mario.right[i]);
   }
+  for(int i=0; i<5; i++) {
+    SDL_DestroyTexture(game->mario.left[i]);
+  }
 }
 
 void renderGame(GameState *game) {
