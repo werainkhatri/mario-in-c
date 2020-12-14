@@ -7,27 +7,23 @@
 #define WINDOW_WIDTH 1280.0f
 #define WINDOW_HEIGHT 720.0f
 #define SPEED 5
-#define MARIO_STANDINGR "res/mario-standing.png"
-#define MARIO_WALKING_1R "res/mario-walking-1.png"
-#define MARIO_WALKING_2R "res/mario-walking-2.png"
-#define MARIO_WALKING_3R "res/mario-walking-3.png"
-#define MARIO_JUMPINGR "res/mario-jumping.png"
-#define MARIO_STANDINGL "res/mario-standing-left.png"
-#define MARIO_WALKING_1L "res/mario-walking-1-left.png"
-#define MARIO_WALKING_2L "res/mario-walking-2-left.png"
-#define MARIO_WALKING_3L "res/mario-walking-3-left.png"
-#define MARIO_JUMPINGL "res/mario-jumping-left.png"
+#define MARIO_STANDING "res/mario-standing.png"
+#define MARIO_WALKING_1 "res/mario-walking-1.png"
+#define MARIO_WALKING_2 "res/mario-walking-2.png"
+#define MARIO_WALKING_3 "res/mario-walking-3.png"
+#define MARIO_JUMPING "res/mario-jumping.png"
 #define GROUND "res/ground.png"
 #define GROUND_HEIGHT 380.0f
 #define MARIO_WIDTH 100.0f
 #define MARIO_HEIGHT 200.0f
 #define GRAVITY 0.8f
-#define JUMP_VELOCITY 20.0f
-#define BG_MOVE_PERCENT 0.1f
+#define JUMP_VELOCITY 14.0f
+#define LONGER_JUMP_ACCELARATION 0.4f // if jump key is pressed long enough, sprite jumps higher
+#define BG_MOVE_PERCENT 0.1f // left and right padding (equal to percent of screen width) from where the background should start moving
 
 typedef struct {
     float x,y,dy;
-    SDL_Texture *right[5], *left[5];
+    SDL_Texture *right[5];
     int onGround;
     int texState; // possible values 0 1 2 3
 } Sprite;
@@ -36,7 +32,7 @@ typedef struct {
   Sprite mario;
   SDL_Texture *ground;
   int texState;
-    int bgMove;
+  int bgMove;
   SDL_Renderer *rend;
 } GameState;
 
@@ -88,8 +84,7 @@ SDL_Texture *createTexture(const char* file, SDL_Renderer *rend) {
 }
 
 int initGame(GameState *game) {
-  char* right[5] = {MARIO_STANDINGR, MARIO_WALKING_1R, MARIO_WALKING_2R, MARIO_WALKING_3R, MARIO_JUMPINGR};
-  char* left[5] = {MARIO_STANDINGL, MARIO_WALKING_1L, MARIO_WALKING_2L, MARIO_WALKING_3L, MARIO_JUMPINGL};
+  char* right[5] = {MARIO_STANDING, MARIO_WALKING_1, MARIO_WALKING_2, MARIO_WALKING_3, MARIO_JUMPING};
   game->mario.x=WINDOW_WIDTH/2.0f;
   game->mario.y=WINDOW_HEIGHT-GROUND_HEIGHT;
   game->mario.texState=1;
@@ -102,10 +97,6 @@ int initGame(GameState *game) {
     game->mario.right[i] = createTexture(right[i], game->rend);
     if(game->mario.right[i]==NULL) return 0;
   }
-  for(int i=0; i<5; i++) {
-    game->mario.left[i] = createTexture(left[i], game->rend);
-    if(game->mario.left[i]==NULL) return 0;
-  }
   game->ground = createTexture(GROUND, game->rend);
   if(game->ground==NULL) return 0;
 
@@ -114,9 +105,6 @@ int initGame(GameState *game) {
 void destroyGame(GameState* game) {
   for(int i=0; i<5; i++) {
     SDL_DestroyTexture(game->mario.right[i]);
-  }
-  for(int i=0; i<5; i++) {
-    SDL_DestroyTexture(game->mario.left[i]);
   }
 }
 
@@ -134,10 +122,8 @@ void renderGame(GameState *game) {
     SDL_Rect groundRect = {i*1280+game->bgMove,0,1280,720};
     SDL_RenderCopy(game->rend, game->ground, NULL, &groundRect);
   }
-  if(s<0)
-    SDL_RenderCopy(game->rend, game->mario.left[(-s)/10], NULL, &marioRect);
-  else
-    SDL_RenderCopy(game->rend, game->mario.right[s/10], NULL, &marioRect);
+  if(!game->mario.onGround) s=40*(s<0?-1:1);
+  SDL_RenderCopyEx(game->rend, game->mario.right[abs(s)/10], NULL, &marioRect, 0, NULL, s<0);
 
   SDL_RenderPresent(game->rend);
 }
@@ -164,7 +150,7 @@ void collision(GameState* game) {
     game->mario.x=0;
   }
 }
-void moveFrame(GameState* game) {
+void moveBGFrame(GameState* game) {
   if(game->mario.x < WINDOW_WIDTH*BG_MOVE_PERCENT) {
     game->bgMove+=(WINDOW_WIDTH*BG_MOVE_PERCENT-game->mario.x);
     game->mario.x=WINDOW_WIDTH*BG_MOVE_PERCENT;
@@ -186,6 +172,13 @@ void processEvent(SDL_Event *event, GameState *game) {
             game->texState=0;
             break;
           }
+          case SDLK_SPACE: {
+            if(game->mario.onGround) {
+              game->mario.dy=-JUMP_VELOCITY;
+              game->mario.onGround=0;
+            }
+            break;
+          }
           default:
             break;
         }
@@ -198,11 +191,8 @@ void processEvent(SDL_Event *event, GameState *game) {
   int s=SPEED;
   if(kstate[SDL_SCANCODE_LSHIFT]) s*=2;
   int *texState = &game->mario.texState;
-  if(kstate[SDL_SCANCODE_UP]) {
-    if(game->mario.onGround) {
-      game->mario.dy=-JUMP_VELOCITY;
-      game->mario.onGround=0;
-    }
+  if(kstate[SDL_SCANCODE_SPACE]) {
+    game->mario.dy-=LONGER_JUMP_ACCELARATION;
   }
   if(kstate[SDL_SCANCODE_RIGHT] && kstate[SDL_SCANCODE_LEFT]) {
     if(*texState>0) *texState=1;
@@ -210,7 +200,7 @@ void processEvent(SDL_Event *event, GameState *game) {
   } else if(kstate[SDL_SCANCODE_RIGHT]) {
     game->mario.x+=s;
     *texState = (*texState<2 || *texState==39?10:game->mario.texState+1);
-  }else if(kstate[SDL_SCANCODE_LEFT]) {
+  } else if(kstate[SDL_SCANCODE_LEFT]) {
     game->mario.x-=s;
     *texState = ((*texState>-2 || *texState==-39)?-10:game->mario.texState-1);
   } else {
@@ -231,12 +221,11 @@ int main() {
   }
 
   SDL_Event event;
-
   while(game.texState) {
     processEvent(&event, &game); // catch any user input events, if occured
     verticalVelocity(&game); // processing the vertical velocity for each frame
     collision(&game); // detect possible collisions and prevent them from being rendered
-    moveFrame(&game);
+    moveBGFrame(&game); // move the background frame if the sprite is too left or too right relative to the window
     renderGame(&game); // render on the screen
   }
 
