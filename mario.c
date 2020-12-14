@@ -4,8 +4,8 @@
 #include <SDL2/SDL_timer.h>
 #include <SDL2/SDL_image.h>
 
-#define WINDOW_WIDTH 1280
-#define WINDOW_HEIGHT 720
+#define WINDOW_WIDTH 1280.0f
+#define WINDOW_HEIGHT 720.0f
 #define SPEED 5
 #define MARIO_STANDINGR "res/mario-standing.png"
 #define MARIO_WALKING_1R "res/mario-walking-1.png"
@@ -18,11 +18,12 @@
 #define MARIO_WALKING_3L "res/mario-walking-3-left.png"
 #define MARIO_JUMPINGL "res/mario-jumping-left.png"
 #define GROUND "res/ground.png"
-#define GROUND_HEIGHT 380
-#define MARIO_WIDTH 100
-#define MARIO_HEIGHT 200
+#define GROUND_HEIGHT 380.0f
+#define MARIO_WIDTH 100.0f
+#define MARIO_HEIGHT 200.0f
 #define GRAVITY 0.8f
-#define JUMP_VELOCITY 20
+#define JUMP_VELOCITY 20.0f
+#define BG_MOVE_PERCENT 0.1f
 
 typedef struct {
     float x,y,dy;
@@ -35,13 +36,14 @@ typedef struct {
   Sprite mario;
   SDL_Texture *ground;
   int texState;
+    int bgMove;
   SDL_Renderer *rend;
 } GameState;
 
 void initSDL(SDL_Window **win, SDL_Renderer **rend) {
   SDL_Init(SDL_INIT_VIDEO);
 
-  *win = SDL_CreateWindow("Viren Khatri",           // Window Title
+  *win = SDL_CreateWindow("Mario by Viren Khatri",           // Window Title
                         SDL_WINDOWPOS_UNDEFINED,   // Initial x position
                         SDL_WINDOWPOS_UNDEFINED,   // Initial y position
                         WINDOW_WIDTH, WINDOW_HEIGHT, 0); // Dimentions of the Window
@@ -88,12 +90,13 @@ SDL_Texture *createTexture(const char* file, SDL_Renderer *rend) {
 int initGame(GameState *game) {
   char* right[5] = {MARIO_STANDINGR, MARIO_WALKING_1R, MARIO_WALKING_2R, MARIO_WALKING_3R, MARIO_JUMPINGR};
   char* left[5] = {MARIO_STANDINGL, MARIO_WALKING_1L, MARIO_WALKING_2L, MARIO_WALKING_3L, MARIO_JUMPINGL};
-  game->mario.x=50;
+  game->mario.x=WINDOW_WIDTH/2.0f;
   game->mario.y=WINDOW_HEIGHT-GROUND_HEIGHT;
   game->mario.texState=1;
   game->mario.onGround=1;
   game->texState=1;
   game->mario.dy=0;
+  game->bgMove=0;
 
   for(int i=0; i<5; i++) {
     game->mario.right[i] = createTexture(right[i], game->rend);
@@ -118,15 +121,19 @@ void destroyGame(GameState* game) {
 }
 
 void renderGame(GameState *game) {
-  SDL_SetRenderDrawColor(game->rend,0,255,0,255); // set drawing color to green
-  SDL_RenderClear(game->rend); // get screen (background) to green
+  SDL_SetRenderDrawColor(game->rend,0,0,0,0); // set drawing color to black
+  SDL_RenderClear(game->rend); // get screen (background) to black
 
   SDL_SetRenderDrawColor(game->rend,255,255,255,255);
 
-  SDL_Rect marioRect = {game->mario.x,game->mario.y,MARIO_WIDTH,MARIO_HEIGHT};
+  SDL_Rect marioRect = {game->mario.x-MARIO_WIDTH/2,game->mario.y,MARIO_WIDTH,MARIO_HEIGHT};
   int s=game->mario.texState;
-  SDL_Rect groundRect = {0,0,1280,720};
-  SDL_RenderCopy(game->rend, game->ground, NULL, &groundRect);
+  if(game->bgMove >= 1280) game->bgMove-=1280;
+  else if(game->bgMove <= -1280) game->bgMove+=1280;
+  for(int i=1; i>=-1; i--) {
+    SDL_Rect groundRect = {i*1280+game->bgMove,0,1280,720};
+    SDL_RenderCopy(game->rend, game->ground, NULL, &groundRect);
+  }
   if(s<0)
     SDL_RenderCopy(game->rend, game->mario.left[(-s)/10], NULL, &marioRect);
   else
@@ -157,7 +164,15 @@ void collision(GameState* game) {
     game->mario.x=0;
   }
 }
-
+void moveFrame(GameState* game) {
+  if(game->mario.x < WINDOW_WIDTH*BG_MOVE_PERCENT) {
+    game->bgMove+=(WINDOW_WIDTH*BG_MOVE_PERCENT-game->mario.x);
+    game->mario.x=WINDOW_WIDTH*BG_MOVE_PERCENT;
+  } else if(game->mario.x > WINDOW_WIDTH*(1-BG_MOVE_PERCENT)) {
+    game->bgMove-=(game->mario.x-WINDOW_WIDTH*(1-BG_MOVE_PERCENT));
+    game->mario.x=WINDOW_WIDTH*(1-BG_MOVE_PERCENT);
+  }
+}
 void processEvent(SDL_Event *event, GameState *game) {
   while(SDL_PollEvent(event)) {
     switch ((*event).type) {
@@ -220,7 +235,8 @@ int main() {
   while(game.texState) {
     processEvent(&event, &game); // catch any user input events, if occured
     verticalVelocity(&game); // processing the vertical velocity for each frame
-    collision(&game);
+    collision(&game); // detect possible collisions and prevent them from being rendered
+    moveFrame(&game);
     renderGame(&game); // render on the screen
   }
 
