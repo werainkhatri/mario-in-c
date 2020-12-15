@@ -22,10 +22,10 @@
 #define BG_MOVE_PERCENT 0.1f // left and right padding (equal to percent of screen width) from where the background should start moving
 
 typedef struct {
-    float x,y,dy;
-    SDL_Texture *right[5];
-    int onGround;
-    int texState; // possible values 0 1 2 3
+  float x,y,dy;
+  SDL_Texture *right[5];
+  int onGround;
+  int texState; // possible values 0 1 2 3
 } Sprite;
 
 typedef struct {
